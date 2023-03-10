@@ -2,6 +2,7 @@
 using System.Text;
 using System.Text.Json;
 using EventStore.Replicator.Shared.Contracts;
+using EventStore.Replicator.Shared.Pipeline;
 
 namespace EventStore.Replicator.Http; 
 
@@ -51,7 +52,7 @@ public class HttpTransform {
                     EventType = httpResponse.EventType, Stream = httpResponse.StreamName
                 },
                 Encoding.UTF8.GetBytes(httpResponse.Payload),
-                originalEvent.Metadata,
+                Transforms.AddOriginalMetadata(originalEvent),
                 originalEvent.Position,
                 originalEvent.SequenceNumber
             );
