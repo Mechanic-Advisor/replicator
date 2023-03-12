@@ -51,7 +51,7 @@ public class HttpTransform {
                     EventType = httpResponse.EventType, Stream = httpResponse.StreamName
                 },
                 Encoding.UTF8.GetBytes(httpResponse.Payload),
-                originalEvent.Metadata,
+                AddOriginalMetadata(originalEvent),
                 originalEvent.Position,
                 originalEvent.SequenceNumber
             );
@@ -62,4 +62,30 @@ public class HttpTransform {
     }
 
     record HttpEvent(string EventType, string StreamName, string Payload);
+
+    static byte[] AddOriginalMetadata(OriginalEvent originalEvent) {
+        if (originalEvent.Metadata == null || originalEvent.Metadata.Length == 0) {
+            var eventMeta = new EventMetadata {
+                OriginalEventNumber = originalEvent.Position.EventNumber,
+                OriginalPosition    = originalEvent.Position.EventPosition,
+                OriginalCreatedDate = originalEvent.Created
+            };
+            return JsonSerializer.SerializeToUtf8Bytes(eventMeta);
+        }
+
+        var originalMeta = JsonSerializer.Deserialize<Dictionary<string, object>>(originalEvent.Metadata);
+
+        originalMeta ??= new Dictionary<string, object>();
+
+        if (!originalMeta.ContainsKey(EventMetadata.EventNumberPropertyName))
+            originalMeta.Add(EventMetadata.EventNumberPropertyName, originalEvent.Position.EventNumber);
+
+        if (!originalMeta.ContainsKey(EventMetadata.PositionPropertyName))
+            originalMeta.Add(EventMetadata.PositionPropertyName, originalEvent.Position.EventPosition);
+
+        if (!originalMeta.ContainsKey(EventMetadata.CreatedDate))
+            originalMeta.Add(EventMetadata.CreatedDate, originalEvent.Created);
+
+        return JsonSerializer.SerializeToUtf8Bytes(originalMeta);
+    }
 }
