@@ -52,7 +52,7 @@ public class HttpTransform {
                     EventType = httpResponse.EventType, Stream = httpResponse.StreamName
                 },
                 Encoding.UTF8.GetBytes(httpResponse.Payload),
-                originalEvent.Metadata,
+                AddOriginalMetadata(originalEvent),
                 originalEvent.Position,
                 originalEvent.SequenceNumber
             );
@@ -63,4 +63,41 @@ public class HttpTransform {
     }
 
     record HttpEvent(Guid EventId, string EventType, string StreamName, string Payload);
+
+    static byte[] AddOriginalMetadata(OriginalEvent originalEvent) {
+        if (originalEvent.Metadata == null || originalEvent.Metadata.Length == 0) {
+            var eventMeta = new EventMetadata {
+                OriginalEventNumber = originalEvent.Position.EventNumber,
+                OriginalPosition    = originalEvent.Position.EventPosition,
+                OriginalCreatedDate = originalEvent.Created
+            };
+            return JsonSerializer.SerializeToUtf8Bytes(eventMeta);
+        }
+
+        using var stream       = new MemoryStream();
+        using var writer       = new Utf8JsonWriter(stream);
+        using var originalMeta = JsonDocument.Parse(originalEvent.Metadata);
+
+        writer.WriteStartObject();
+
+        foreach (var jsonElement in originalMeta.RootElement.EnumerateObject()) {
+            jsonElement.WriteTo(writer);
+        }
+        
+        var properties = originalMeta.RootElement.EnumerateObject()
+            .ToDictionary(elem => elem.Name);
+
+        if (!properties.ContainsKey(EventMetadata.EventNumberPropertyName))
+            writer.WriteNumber(EventMetadata.EventNumberPropertyName, originalEvent.Position.EventNumber);
+
+        if (!properties.ContainsKey(EventMetadata.PositionPropertyName))
+            writer.WriteNumber(EventMetadata.PositionPropertyName, originalEvent.Position.EventPosition);
+
+        if (!properties.ContainsKey(EventMetadata.CreatedDate))
+            writer.WriteString(EventMetadata.CreatedDate, originalEvent.Created);
+
+        writer.WriteEndObject();
+        writer.Flush();
+        return stream.ToArray();
+    }
 }
