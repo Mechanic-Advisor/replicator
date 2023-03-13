@@ -19,6 +19,7 @@ public class HttpTransform {
         OriginalEvent originalEvent, CancellationToken cancellationToken
     ) {
         var httpEvent = new HttpEvent(
+            originalEvent.EventDetails.EventId,
             originalEvent.EventDetails.EventType,
             originalEvent.EventDetails.Stream,
             Encoding.UTF8.GetString(originalEvent.Data)
@@ -61,7 +62,7 @@ public class HttpTransform {
         }
     }
 
-    record HttpEvent(string EventType, string StreamName, string Payload);
+    record HttpEvent(Guid EventId, string EventType, string StreamName, string Payload);
 
     static byte[] AddOriginalMetadata(OriginalEvent originalEvent) {
         if (originalEvent.Metadata == null || originalEvent.Metadata.Length == 0) {
