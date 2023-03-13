@@ -73,19 +73,30 @@ public class HttpTransform {
             return JsonSerializer.SerializeToUtf8Bytes(eventMeta);
         }
 
-        var originalMeta = JsonSerializer.Deserialize<Dictionary<string, object>>(originalEvent.Metadata);
+        using var stream       = new MemoryStream();
+        using var writer       = new Utf8JsonWriter(stream);
+        using var originalMeta = JsonDocument.Parse(originalEvent.Metadata);
 
-        originalMeta ??= new Dictionary<string, object>();
+        writer.WriteStartObject();
 
-        if (!originalMeta.ContainsKey(EventMetadata.EventNumberPropertyName))
-            originalMeta.Add(EventMetadata.EventNumberPropertyName, originalEvent.Position.EventNumber);
+        foreach (var jsonElement in originalMeta.RootElement.EnumerateObject()) {
+            jsonElement.WriteTo(writer);
+        }
+        
+        var properties = originalMeta.RootElement.EnumerateObject()
+            .ToDictionary(elem => elem.Name);
 
-        if (!originalMeta.ContainsKey(EventMetadata.PositionPropertyName))
-            originalMeta.Add(EventMetadata.PositionPropertyName, originalEvent.Position.EventPosition);
+        if (!properties.ContainsKey(EventMetadata.EventNumberPropertyName))
+            writer.WriteNumber(EventMetadata.EventNumberPropertyName, originalEvent.Position.EventNumber);
 
-        if (!originalMeta.ContainsKey(EventMetadata.CreatedDate))
-            originalMeta.Add(EventMetadata.CreatedDate, originalEvent.Created);
+        if (!properties.ContainsKey(EventMetadata.PositionPropertyName))
+            writer.WriteNumber(EventMetadata.PositionPropertyName, originalEvent.Position.EventPosition);
 
-        return JsonSerializer.SerializeToUtf8Bytes(originalMeta);
+        if (!properties.ContainsKey(EventMetadata.CreatedDate))
+            writer.WriteString(EventMetadata.CreatedDate, originalEvent.Created);
+
+        writer.WriteEndObject();
+        writer.Flush();
+        return stream.ToArray();
     }
 }
